@@ -1,13 +1,13 @@
 {
   "name": "devclaw",
   "private": true,
-  "workspaces": ["client"],
+  "workspaces": ["client", "server"],
   "scripts": {
     "dev": "concurrently -n s,c -c blue,green \"cd server && npm run dev\" \"cd client && npm run dev\"",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
     "build": "npm run build --workspace=client",
-    "railway:build": "npm install && cd server && npm install && npm run build",
+    "railway:build": "npm install && npm run build",
     "start": "node server/src/index.js"
   },
   "devDependencies": {
