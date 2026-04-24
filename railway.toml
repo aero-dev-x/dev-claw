@@ -1,0 +1,5 @@
+[build]
+buildCommand = "npm run railway:build"
+
+[deploy]
+startCommand = "npm run start"
