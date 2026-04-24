@@ -4,6 +4,17 @@ import { readSseDataJson } from "./sseChat";
 const raw = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? "";
 const base = raw.replace(/\/$/, "");
 
+/** If the static host (e.g. Vercel) has no API, /api 405/404 with empty `base` means the client was built without VITE_API_BASE_URL. */
+function formatApiError(path: string, status: number, message: string): string {
+  if (base) {
+    return message;
+  }
+  if (path.startsWith("/api") && (status === 405 || status === 404)) {
+    return "VITE_API_BASE_URL is not set (split deploy). Set it at build time to your API origin (e.g. https://your-app.up.railway.app) with no trailing slash, then rebuild. If the API and app share one Railway URL, leave VITE_API_BASE_URL unset.";
+  }
+  return message;
+}
+
 export async function api<T>(
   path: string,
   options: RequestInit = {}
@@ -18,8 +29,9 @@ export async function api<T>(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = (data as { error?: string }).error || res.statusText;
-    throw new Error(err);
+    const err =
+      (data as { error?: string }).error || res.statusText || "Request failed";
+    throw new Error(formatApiError(path, res.status, err));
   }
   return data as T;
 }
@@ -46,9 +58,10 @@ export function postMessageStream(
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text, stream: true }),
         });
+        const streamPath = `/api/sessions/${sessionId}/messages`;
         if (!res.ok) {
           const d = (await res.json().catch(() => ({}))) as { error?: string };
-          const err = d.error || res.statusText;
+          const err = formatApiError(streamPath, res.status, d.error || res.statusText);
           reject(new Error(err));
           return;
         }
@@ -121,7 +134,11 @@ export function postGuestMessageStream(
         });
         if (!res.ok) {
           const d = (await res.json().catch(() => ({}))) as { error?: string };
-          reject(new Error(d.error || res.statusText));
+          reject(
+            new Error(
+              formatApiError("/api/guest/chat", res.status, d.error || res.statusText)
+            )
+          );
           return;
         }
         const ct = res.headers.get("content-type") || "";
@@ -182,7 +199,7 @@ export async function guestApi<T>(path: string, options: RequestInit = {}): Prom
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = (data as { error?: string }).error || res.statusText;
-    throw new Error(err);
+    throw new Error(formatApiError(path, res.status, err));
   }
   return data as T;
 }

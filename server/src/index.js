@@ -1,4 +1,7 @@
 import "dotenv/config";
+import path from "node:path";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -28,6 +31,12 @@ import {
   estimateInputTokensFromMessages,
   charEstimateTokens,
 } from "./usageRecord.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+/** Built Vite app; same process as API for one-host deploy (Render/Railway). Override with absolute path. */
+const clientDist = process.env.CLIENT_DIST
+  ? path.resolve(process.env.CLIENT_DIST)
+  : path.join(__dirname, "..", "..", "client", "dist");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 4000;
@@ -1190,11 +1199,34 @@ app.get("/api/health", (_req, res) => {
   return res.json({ ok: true, name: "DevClaw" });
 });
 
+const spaIndex = path.join(clientDist, "index.html");
+if (fs.existsSync(spaIndex)) {
+  app.use(express.static(clientDist, { index: false }));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      return res.status(404).json({ error: "Not found." });
+    }
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      return next();
+    }
+    res.sendFile(spaIndex, (err) => {
+      if (err) {
+        next(err);
+      }
+    });
+  });
+}
+
 app.use((err, _req, res, _next) => {
   console.error(err);
   return res.status(500).json({ error: "Something went wrong." });
 });
 
 app.listen(PORT, () => {
-  console.log(`DevClaw server http://localhost:${PORT}`);
+  const u = `http://localhost:${PORT}`;
+  if (fs.existsSync(spaIndex)) {
+    console.log(`DevClaw API + web ${u} (serving ${clientDist})`);
+  } else {
+    console.log(`DevClaw API ${u} (no ${spaIndex}; run npm run build at repo root for combined deploy)`);
+  }
 });
