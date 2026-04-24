@@ -1,11 +1,12 @@
 {
   "name": "devclaw",
   "private": true,
+  "workspaces": ["client"],
   "scripts": {
     "dev": "concurrently -n s,c -c blue,green \"cd server && npm run dev\" \"cd client && npm run dev\"",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
-    "build": "cd client && npm run build"
+    "build": "npm run build --workspace=client"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

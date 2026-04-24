@@ -1,6 +1,8 @@
 import { readSseDataJson } from "./sseChat";
 
-const base = "";
+/** Production: set in Vercel to your API base, e.g. https://dev-claw-api.onrender.com (no trailing slash). Dev: use Vite proxy (empty). */
+const raw = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? "";
+const base = raw.replace(/\/$/, "");
 
 export async function api<T>(
   path: string,

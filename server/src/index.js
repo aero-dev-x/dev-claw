@@ -31,13 +31,37 @@ import {
 
 const app = express();
 const PORT = Number(process.env.PORT) || 4000;
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+const CLIENT_ORIGINS = (process.env.CLIENT_ORIGIN || "http://localhost:5173")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-production";
 const COOKIE_NAME = "devclaw_token";
 
+function authCookieOptions() {
+  const same =
+    process.env.AUTH_COOKIE_SAME_SITE || (process.env.NODE_ENV === "production" ? "none" : "lax");
+  const secure = same === "none" || process.env.NODE_ENV === "production";
+  return {
+    httpOnly: true,
+    sameSite: same,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    secure,
+    path: "/",
+  };
+}
+
 app.use(
   cors({
-    origin: CLIENT_ORIGIN,
+    origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (CLIENT_ORIGINS.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   })
 );
@@ -99,12 +123,7 @@ app.post("/api/auth/signup", (req, res) => {
     JWT_SECRET,
     { expiresIn: "7d" }
   );
-  res.cookie(COOKIE_NAME, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    secure: process.env.NODE_ENV === "production",
-  });
+  res.cookie(COOKIE_NAME, token, authCookieOptions());
   return res.json({ user });
 });
 
@@ -121,17 +140,13 @@ app.post("/api/auth/login", (req, res) => {
   }
   const user = { id: row.id, email: row.email, name: row.name, agent_name: row.agent_name };
   const token = jwt.sign({ sub: String(user.id), email: user.email }, JWT_SECRET, { expiresIn: "7d" });
-  res.cookie(COOKIE_NAME, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    secure: process.env.NODE_ENV === "production",
-  });
+  res.cookie(COOKIE_NAME, token, authCookieOptions());
   return res.json({ user });
 });
 
 app.post("/api/auth/logout", (req, res) => {
-  res.clearCookie(COOKIE_NAME, { sameSite: "lax" });
+  const o = authCookieOptions();
+  res.clearCookie(COOKIE_NAME, { sameSite: o.sameSite, secure: o.secure, path: o.path });
   return res.json({ ok: true });
 });
 
